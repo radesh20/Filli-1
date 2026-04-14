@@ -1,0 +1,67 @@
+[
+  {
+    "manager": "Deepa Menon",
+    "analyst_id": "A101",
+    "analyst_name": "Falguni Sharma (FS)",
+    "remark": "Send  to  to give more attention of iorta customer",
+    "timestamp": "2026-04-01T11:06:34.016491",
+    "read": true
+  },
+  {
+    "manager": "Deepa Menon",
+    "analyst_id": "A101",
+    "analyst_name": "Falguni Sharma (FS)",
+    "remark": "Send  to  - meet me in office with files of delta",
+    "timestamp": "2026-04-01T11:08:16.643142",
+    "read": true
+  },
+  {
+    "manager": "ALL_MANAGERS",
+    "analyst_id": "ESCALATION",
+    "analyst_name": "Falguni Sharma (FS)",
+    "remark": "\ud83d\udea8 ESCALATION: Beta Retail Group \u2014 Invoice INV1025 (\u20b995,000, 291d overdue). Follow-up history: 3 emails sent, 0 calls made, 0 broken promise-to-pay. Analyst Falguni Sharma (FS) requests management intervention.",
+    "timestamp": "2026-04-02T09:55:55.396530",
+    "read": true,
+    "type": "escalation",
+    "invoice_id": "INV1025",
+    "customer_name": "Beta Retail Group"
+  },
+  {
+    "manager": "Deepa Menon",
+    "analyst_id": "A101",
+    "analyst_name": "Falguni Sharma (FS)",
+    "remark": "Sharma - Status on ETA foods",
+    "timestamp": "2026-04-06T09:42:38.109784",
+    "read": true
+  },
+  {
+    "manager": "Deepa Menon",
+    "analyst_id": "A101",
+    "analyst_name": "Falguni Sharma (FS)",
+    "remark": "Update on delta infra",
+    "timestamp": "2026-04-06T11:13:47.271467",
+    "read": true
+  },
+  {
+    "manager": "ALL_MANAGERS",
+    "analyst_id": "ESCALATION",
+    "analyst_name": "Falguni Sharma (FS)",
+    "remark": "\ud83d\udea8 ESCALATION from Falguni Sharma (FS): Delta Pharma \u2014 Invoice INV1007 (\u20b9150,000, 219d overdue). Follow-up done: 3 emails, 1 calls, 0 broken PTP. Requesting management intervention.",
+    "timestamp": "2026-04-06T18:50:15.438607",
+    "read": false,
+    "type": "escalation",
+    "invoice_id": "INV1007",
+    "customer_name": "Delta Pharma"
+  },
+  {
+    "manager": "ALL_MANAGERS",
+    "analyst_id": "ESCALATION",
+    "analyst_name": "Falguni Sharma (FS)",
+    "remark": "\ud83d\udea8 ESCALATION from Falguni Sharma (FS): Eta Foods \u2014 Invoice INV1013 (\u20b920,000, 82d overdue). Follow-up done: 3 emails, 0 calls, 0 broken PTP. Requesting management intervention.",
+    "timestamp": "2026-04-06T18:54:53.636201",
+    "read": false,
+    "type": "escalation",
+    "invoice_id": "INV1013",
+    "customer_name": "Eta Foods"
+  }
+]

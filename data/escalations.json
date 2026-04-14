@@ -1,0 +1,44 @@
+[
+  {
+    "analyst": "Falguni Sharma (FS)",
+    "analyst_id": "A101",
+    "customer_name": "Beta Retail Group",
+    "customer_id": "CUST02",
+    "invoice_id": "INV1025",
+    "amount": 95000,
+    "days_overdue": 291,
+    "emails_sent": 3,
+    "calls_made": 0,
+    "broken_promises": 0,
+    "timestamp": "2026-04-02T09:55:55.381689",
+    "status": "open"
+  },
+  {
+    "analyst": "Falguni Sharma (FS)",
+    "analyst_id": "A101",
+    "customer_name": "Delta Pharma",
+    "customer_id": "CUST04",
+    "invoice_id": "INV1007",
+    "amount": 150000,
+    "days_overdue": 219,
+    "emails_sent": 3,
+    "calls_made": 1,
+    "broken_promises": 0,
+    "timestamp": "2026-04-06T18:50:15.428380",
+    "status": "open"
+  },
+  {
+    "analyst": "Falguni Sharma (FS)",
+    "analyst_id": "A101",
+    "customer_name": "Eta Foods",
+    "customer_id": "CUST07",
+    "invoice_id": "INV1013",
+    "amount": 20000,
+    "days_overdue": 82,
+    "emails_sent": 3,
+    "calls_made": 0,
+    "broken_promises": 0,
+    "timestamp": "2026-04-06T18:54:53.629684",
+    "status": "open"
+  }
+]
