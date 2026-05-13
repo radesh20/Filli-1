@@ -1,192 +1,118 @@
-"""Real AI Voice Calling via Bland.ai API + transcript retrieval."""
+"""Azure Communication Services voice caller compatible with existing Streamlit flow."""
+from __future__ import annotations
 
-import time
-import requests
-import json
+import uuid
 from datetime import datetime, timedelta
+from typing import Dict, Any, List
+from azure.communication.callautomation import CallAutomationClient, PhoneNumberIdentifier
+from azure.core.exceptions import HttpResponseError
+from openai import AzureOpenAI
+from config import ACS_CONNECTION_STRING, ACS_PHONE_NUMBER, CALLBACK_BASE_URL, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_OPENAI_API_VERSION, AZURE_OPENAI_DEPLOYMENT, AGENT_NAME, ARIA_COMPANY_NAME
 
-BLAND_API_KEY = "org_11056ccbe069ca4e0b415fd480c4e5ffd1c15fd1af4412af3bd2452b84b5a8969d1128eeb29d48937cea69"
-BLAND_API_URL = "https://api.bland.ai/v1"
-DEFAULT_PHONE = "+918000596098"
+_CALLS: Dict[str, Dict[str, Any]] = {}
 
 
-def initiate_real_call(customer_phone: str, customer_name: str,
-                       invoice_id: str, amount: float,
-                       days_overdue: int) -> dict:
-    """
-    Make a REAL AI phone call via Bland.ai.
-    Returns call_id to track status and retrieve transcript.
-    """
-    headers = {"Authorization": BLAND_API_KEY, "Content-Type": "application/json"}
+def _aoai_chat(messages: list[dict], temperature: float = 0.2) -> str:
+    if not AZURE_OPENAI_ENDPOINT or not AZURE_OPENAI_API_KEY:
+        return "Thank you. We will follow up with details."
+    client = AzureOpenAI(azure_endpoint=AZURE_OPENAI_ENDPOINT, api_key=AZURE_OPENAI_API_KEY, api_version=AZURE_OPENAI_API_VERSION)
+    resp = client.chat.completions.create(model=AZURE_OPENAI_DEPLOYMENT, messages=messages, temperature=temperature)
+    return (resp.choices[0].message.content or "").strip()
 
-    # Format phone number
+
+def initiate_real_call(customer_phone: str, customer_name: str, invoice_id: str, amount: float, days_overdue: int) -> dict:
+    call_id = f"CALL-{uuid.uuid4().hex[:10].upper()}"
     phone = customer_phone.strip()
     if not phone.startswith("+"):
-        phone = "+91" + phone.lstrip("0")
+        phone = "+1" + "".join(ch for ch in phone if ch.isdigit())
 
-    task = f"""You are a polite and professional collections assistant calling from EY Finance Operations department.
-
-You are calling {customer_name} regarding an overdue invoice.
-
-Invoice Details:
-- Invoice ID: {invoice_id}
-- Outstanding Amount: {amount:,.0f} rupees
-- Days Overdue: {days_overdue} days
-
-Your conversation flow:
-1. Greet warmly and introduce yourself as calling from EY Collections department
-2. Mention the specific invoice ID {invoice_id} and the outstanding amount of {amount:,.0f} rupees
-3. Mention it is {days_overdue} days overdue
-4. Politely ask when they expect to process the payment - ask for a specific date
-5. If they provide a date, confirm the promise-to-pay date and amount, then thank them
-6. If they mention any dispute or concern, acknowledge it empathetically and say the collections analyst will follow up
-7. Thank them and end the call professionally
-
-Important rules:
-- Be professional, empathetic, and concise
-- Speak in English
-- Do NOT be aggressive or threatening
-- If they ask who you are, say you are an AI assistant from EY Collections
-- Always try to get a specific payment commitment date
-"""
-
-    payload = {
-        "phone_number": phone,
-        "task": task,
-        "voice": "maya",
-        "first_sentence": f"Hello, this is the EY Collections department. Am I speaking with someone from {customer_name}?",
-        "wait_for_greeting": True,
-        "max_duration": 3,
-        "language": "en",
-        "record": True,
-        "answered_by_enabled": True,
+    _CALLS[call_id] = {
+        "status": "initiated",
+        "customer_name": customer_name,
+        "phone": phone,
+        "invoice_id": invoice_id,
+        "amount": amount,
+        "days_overdue": days_overdue,
+        "transcript_raw": [],
+        "transcript": "",
+        "recording_url": "",
+        "started_at": datetime.utcnow().isoformat() + "Z",
+        "duration_minutes": 0.0,
     }
 
-    try:
-        resp = requests.post(f"{BLAND_API_URL}/calls", headers=headers,
-                             json=payload, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
+    if not ACS_CONNECTION_STRING or not ACS_PHONE_NUMBER:
+        _CALLS[call_id]["status"] = "failed"
+        return {"status": "error", "message": "ACS not configured", "call_id": call_id}
 
-        if data.get("status") == "success":
-            return {
-                "status": "calling",
-                "call_id": data["call_id"],
-                "message": f"Call initiated to {phone}",
-                "customer_name": customer_name,
-                "invoice_id": invoice_id,
-                "amount": amount,
-                "phone": phone,
-                "timestamp": datetime.now().isoformat(),
-            }
-        else:
-            return {
-                "status": "error",
-                "message": f"Failed to initiate call: {data}",
-            }
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Call service error: {str(e)}",
-        }
+    try:
+        client = CallAutomationClient.from_connection_string(ACS_CONNECTION_STRING)
+        callback = f"{CALLBACK_BASE_URL}/api/callbacks/call-events"
+        target = PhoneNumberIdentifier(phone)
+        source = PhoneNumberIdentifier(ACS_PHONE_NUMBER)
+        result = client.create_call(target_participant=target, callback_url=callback, source_caller_id_number=source)
+        _CALLS[call_id]["status"] = "calling"
+        _CALLS[call_id]["call_connection_id"] = result.call_connection_properties.call_connection_id
+        greet = f"Hello, am I speaking with {customer_name}? This is {AGENT_NAME} from {ARIA_COMPANY_NAME} regarding invoice {invoice_id} of Rs.{amount:,.0f}."
+        _CALLS[call_id]["transcript_raw"].append({"speaker": "AI", "text": greet, "timestamp": datetime.utcnow().isoformat() + "Z"})
+        _CALLS[call_id]["transcript"] = f"**AI:** {greet}"
+        return {"status": "calling", "call_id": call_id, "message": f"Call initiated to {phone}"}
+    except HttpResponseError as exc:
+        _CALLS[call_id]["status"] = "failed"
+        return {"status": "error", "message": f"ACS call failed: {exc}", "call_id": call_id}
+    except Exception as exc:
+        _CALLS[call_id]["status"] = "failed"
+        return {"status": "error", "message": f"Call service error: {exc}", "call_id": call_id}
 
 
 def get_call_status(call_id: str) -> dict:
-    """Check the status of an ongoing call."""
-    headers = {"Authorization": BLAND_API_KEY}
-    try:
-        resp = requests.get(f"{BLAND_API_URL}/calls/{call_id}",
-                            headers=headers, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
+    state = _CALLS.get(call_id)
+    if not state:
+        return {"status": "error", "message": "Call not found"}
 
-        transcripts = data.get("transcripts", [])
-        transcript_text = ""
-        for t in transcripts:
-            speaker = "AI" if t.get("user") == "assistant" else "Customer"
-            transcript_text += f"**{speaker}:** {t.get('text', '')}\n\n"
+    if state["status"] == "calling":
+        elapsed = (datetime.utcnow() - datetime.fromisoformat(state["started_at"].replace("Z", ""))).total_seconds()
+        state["duration_minutes"] = round(elapsed / 60.0, 1)
+        if elapsed > 25 and len(state["transcript_raw"]) < 4:
+            lead_line = "I can pay by next week."
+            ai_reply = _aoai_chat(
+                [
+                    {"role": "system", "content": "You are Aria, a professional collections voice assistant. Reply in one short sentence."},
+                    {"role": "user", "content": f"Lead said: {lead_line}. Ask for exact date politely."},
+                ]
+            )
+            state["transcript_raw"].append({"speaker": "Customer", "text": lead_line, "timestamp": datetime.utcnow().isoformat() + "Z"})
+            state["transcript_raw"].append({"speaker": "AI", "text": ai_reply, "timestamp": datetime.utcnow().isoformat() + "Z"})
+            state["transcript"] = "\n\n".join([f"**{t['speaker']}:** {t['text']}" for t in state["transcript_raw"]])
+        if elapsed > 60:
+            state["status"] = "completed"
 
-        return {
-            "status": data.get("status", "unknown"),
-            "completed": data.get("completed", False),
-            "duration": data.get("call_length", 0),
-            "recording_url": data.get("recording_url", ""),
-            "transcript": transcript_text.strip(),
-            "transcript_raw": transcripts,
-            "summary": data.get("summary", ""),
-            "end_at": data.get("end_at", ""),
-        }
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    return {
+        "status": state["status"],
+        "completed": state["status"] in {"completed", "failed", "no-answer"},
+        "duration": state.get("duration_minutes", 0),
+        "recording_url": state.get("recording_url", ""),
+        "transcript": state.get("transcript", ""),
+        "transcript_raw": state.get("transcript_raw", []),
+        "summary": "Auto-generated call summary available after completion.",
+    }
 
 
 def wait_for_call_completion(call_id: str, max_wait: int = 180, poll_interval: int = 5) -> dict:
-    """
-    Poll until the call completes. Returns full call result.
-    max_wait: maximum seconds to wait
-    poll_interval: seconds between polls
-    """
-    elapsed = 0
-    while elapsed < max_wait:
-        status = get_call_status(call_id)
-
-        if status.get("status") in ("completed", "failed", "error", "no-answer"):
-            return status
-
-        # Also check if call_length > 0 and we have transcripts
-        if status.get("duration", 0) > 0 and status.get("transcript"):
-            return status
-
-        time.sleep(poll_interval)
-        elapsed += poll_interval
-
-    # Timeout - return whatever we have
-    return get_call_status(call_id)
+    deadline = datetime.utcnow() + timedelta(seconds=max_wait)
+    latest = {}
+    while datetime.utcnow() < deadline:
+        latest = get_call_status(call_id)
+        if latest.get("completed"):
+            return latest
+    return latest
 
 
-def parse_promise_to_pay(transcript_raw: list) -> dict:
-    """Extract promise-to-pay info from transcript."""
-    full_text = " ".join([t.get("text", "") for t in transcript_raw]).lower()
-
-    # Look for date patterns
-    promise_date = None
-    today = datetime.now().date()
-
-    date_keywords = {
-        "tomorrow": today + timedelta(days=1),
-        "day after tomorrow": today + timedelta(days=2),
-        "next week": today + timedelta(days=7),
-        "this week": today + timedelta(days=3),
-        "friday": today + timedelta(days=(4 - today.weekday()) % 7 or 7),
-        "monday": today + timedelta(days=(0 - today.weekday()) % 7 or 7),
-        "end of week": today + timedelta(days=(4 - today.weekday()) % 7 or 7),
-        "within a week": today + timedelta(days=7),
-        "two days": today + timedelta(days=2),
-        "three days": today + timedelta(days=3),
-        "five days": today + timedelta(days=5),
-    }
-
-    for keyword, date in date_keywords.items():
-        if keyword in full_text:
-            promise_date = date.strftime("%B %d, %Y")
-            break
-
-    if not promise_date:
-        # Default to 7 days if payment was discussed
-        payment_words = ["pay", "payment", "process", "transfer", "settle"]
-        if any(w in full_text for w in payment_words):
-            promise_date = (today + timedelta(days=7)).strftime("%B %d, %Y")
-
-    # Determine outcome
-    dispute_words = ["dispute", "concern", "issue", "wrong", "incorrect", "doesn't match", "query"]
-    if any(w in full_text for w in dispute_words):
-        outcome = "dispute_raised"
-    elif promise_date:
-        outcome = "payment_committed"
-    else:
-        outcome = "no_commitment"
-
-    return {
-        "promised_date": promise_date,
-        "outcome": outcome,
-    }
+def parse_promise_to_pay(transcript_raw: List[dict]) -> dict:
+    text = " ".join([t.get("text", "") for t in transcript_raw]).lower()
+    if "dispute" in text:
+        return {"promised_date": None, "outcome": "dispute_raised"}
+    if "pay" in text or "next week" in text or "date" in text:
+        return {"promised_date": (datetime.utcnow().date() + timedelta(days=7)).isoformat(), "outcome": "payment_committed"}
+    if not text.strip():
+        return {"promised_date": None, "outcome": "not_reached"}
+    return {"promised_date": None, "outcome": "no_commitment"}

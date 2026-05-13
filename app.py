@@ -986,7 +986,7 @@ def _send_proactive_email(action, data_service):
     from actions.email_sender import send_collection_email
     customers = data_service.get_customers()
     cust = customers[customers["customer_id"] == action["customer_id"]]
-    email = cust.iloc[0]["email"] if len(cust) > 0 else "faaalguniii10@gmail.com"
+    email = cust.iloc[0]["email"] if len(cust) > 0 else "collections@eyfinance.example"
     result = send_collection_email(
         customer_email=email, customer_name=action["customer_name"],
         invoice_id=action["invoice_id"], amount=action["amount"], days_overdue=action["days_overdue"],

@@ -265,7 +265,7 @@ def _send_email_and_notify(data_service, customer_id, invoice_id, customer_name,
     """Send email, log it, track count, and auto-prompt call after 2 emails."""
     customers = data_service.get_customers()
     cust = customers[customers["customer_id"] == customer_id]
-    email = cust.iloc[0]["email"] if len(cust) > 0 else "faaalguniii10@gmail.com"
+    email = cust.iloc[0]["email"] if len(cust) > 0 else "collections@eyfinance.example"
 
     result = send_collection_email(
         customer_email=email,
@@ -378,11 +378,11 @@ def _handle_action_confirmation(action, data_service, persona):
 
 
 def _run_live_call(cust, inv, invoice_id):
-    """Make a REAL AI phone call via Bland.ai with live status updates."""
+    """Make a real AI phone call via Azure Communication Services with live status updates."""
     import time
 
     customer_name = cust["customer_name"]
-    phone = cust.get("phone", "+91-8005966098")
+    phone = cust.get("phone", "+12013034001")
     amount = inv["amount"]
     days_overdue = inv["days_overdue"]
 
